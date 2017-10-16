@@ -2,14 +2,24 @@ package server
 
 import (
 	"io"
+	"judis/utils"
 	"net"
 	"net/textproto"
 	"strings"
 
 	log "github.com/inconshreveable/log15"
+	"github.com/olebedev/config"
 )
 
+// Config contains env name and *config.Config
+type Config struct {
+	Env string
+	Cfg *config.Config
+}
+
+// Server contains server info and methods
 type Server struct {
+	Port int
 }
 
 func (server *Server) handle(conn *net.TCPConn) error {
@@ -37,33 +47,34 @@ func (server *Server) handle(conn *net.TCPConn) error {
 	}
 }
 
-func buildServer() *Server {
-	return new(Server)
+// BuildServer returns pointer to new Server instance
+func BuildServer(config *Config) *Server {
+	s := new(Server)
+	cfg := config.Cfg
+	var err error
+	s.Port, err = cfg.Int(config.Env + ".port")
+	utils.LogError("port must be present in config", err)
+	return s
 }
 
-func logError(err error, msg string) {
-	if err != nil {
-		log.Crit(msg, err)
-	}
-}
-func main() {
-	// github.com/olebedev/config CONFIG
-	// https://github.com/ivpusic/grpool
-	log.Info("starting server...")
-	var server = buildServer()
+// func main() {
 
-	addr, err := net.ResolveTCPAddr("tcp", ":8080")
-	logError(err, "can not build address")
+// 	// https://github.com/ivpusic/grpool
 
-	listener, err := net.ListenTCP("tcp", addr)
-	logError(err, "can not listen address")
+// 	var server = buildServer()
 
-	defer listener.Close()
+// 	addr, err := net.ResolveTCPAddr("tcp", ":8080")
+// 	utils.LogError(err, "can not build address")
 
-	for {
-		// TODO: limit connection amount
-		connection, err := listener.AcceptTCP()
-		logError(err, "error during connection accepting")
-		go server.handle(connection)
-	}
-}
+// 	listener, err := net.ListenTCP("tcp", addr)
+// 	utils.LogError(err, "can not listen address")
+
+// 	defer listener.Close()
+
+// 	for {
+// 		// TODO: limit connection amount
+// 		connection, err := listener.AcceptTCP()
+// 		utils.LogError(err, "error during connection accepting")
+// 		go server.handle(connection)
+// 	}
+// }
