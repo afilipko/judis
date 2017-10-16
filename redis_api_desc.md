@@ -1,0 +1,45 @@
+String
+    APPEND
+    BITCOUNT
+    BITFIELD
+    BITOP
+    BITPOS
+    DECR
+    DECRBY
+    GET
+    GETBIT
+    GETRANGE
+    GETSET
+    INCR
+    INCRBY
+    INCRBYFLOAT
+    MGET
+    MSET
+    MSETNX
+    PSETEX
+    SET
+    SETBIT
+    SETEX
+    SETNX
+    SETRANGE
+    STRLEN
+Lists
+    BLPOP
+    BRPOP
+    BRPOPLPUSH
+    LINDEX
+    LINSERT
+    LLEN
+    LPOP
+    LPUSH
+    LPUSHX
+    LRANGE
+    LREM
+    LSET
+    LTRIM
+    RPOP
+    RPOPLPUSH
+    RPUSH
+    RPUSHX    
+Dict
+    
