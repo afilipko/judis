@@ -8,14 +8,7 @@ import (
 	"strings"
 
 	log "github.com/inconshreveable/log15"
-	"github.com/olebedev/config"
 )
-
-// Config contains env name and *config.Config
-type Config struct {
-	Env string
-	Cfg *config.Config
-}
 
 // Server contains server info and methods
 type Server struct {
