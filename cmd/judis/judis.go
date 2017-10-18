@@ -4,7 +4,6 @@ import (
 	"judis/config"
 	"judis/server"
 	"os"
-	"strconv"
 
 	log "github.com/inconshreveable/log15"
 )
@@ -23,6 +22,12 @@ func main() {
 	}
 	log.Info("Config path " + confPath)
 	cfg := config.ParseConfig(envName, confPath)
-	serv := server.BuildServer(cfg)
-	log.Info("PORT " + strconv.Itoa(serv.Port))
+	// serv := server.BuildServer(cfg)
+	// log.Info("PORT " + strconv.Itoa(serv.Port))
+	p, err := cfg.Cfg.Int("development.port")
+	if err != nil {
+		log.Error("4", err)
+	}
+	s := server.Server{Port: p}
+	s.Handle()
 }

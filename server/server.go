@@ -15,40 +15,55 @@ type Server struct {
 	Port int
 }
 
-func (server *Server) handle(conn *net.TCPConn) error {
-	defer conn.Close()
-	protoConn := textproto.NewConn(conn)
+func (server *Server) Handle() error {
+	addr, err := net.ResolveTCPAddr("tcp", ":3002")
+	utils.LogError("can not build address", err)
 
-	// if err := c.PrintfLine("200 Connected"); err != nil {
-	// 	log15.Warn("closing connection", "error writing to client", err)
-	// 	return
-	// }
+	listener, err := net.ListenTCP("tcp", addr)
+	utils.LogError("can not listen address", err)
+
+	defer listener.Close()
 
 	for {
-		l, err := protoConn.ReadLine()
-		if err != nil {
-			if err == io.EOF {
-				log.Info("the connection is dropped on client side")
+		// TODO: limit connection amount
+		connection, err := listener.AcceptTCP()
+		utils.LogError("error during connection accepting", err)
+		defer connection.Close()
+		protoConn := textproto.NewConn(connection)
+
+		// if err := c.PrintfLine("200 Connected"); err != nil {
+		// 	log15.Warn("closing connection", "error writing to client", err)
+		// 	return
+		// }
+
+		for {
+			l, err := protoConn.ReadLine()
+			if err != nil {
+				if err == io.EOF {
+					log.Info("the connection is dropped on client side")
+					return err
+				}
+				log.Warn("closing connection", "error reading", err)
 				return err
 			}
-			log.Warn("closing connection", "error reading", err)
-			return err
+
+			cmd := strings.Fields(l)
+			log.Debug("got command", "line", l, "cmd", cmd)
 		}
-
-		cmd := strings.Fields(l)
-		log.Debug("got command", "line", l, "cmd", cmd)
 	}
+	// go server.handle(connection)
+
 }
 
-// BuildServer returns pointer to new Server instance
-func BuildServer(config *Config) *Server {
-	s := new(Server)
-	cfg := config.Cfg
-	var err error
-	s.Port, err = cfg.Int(config.Env + ".port")
-	utils.LogError("port must be present in config", err)
-	return s
-}
+// // BuildServer returns pointer to new Server instance
+// func BuildServer(config *Config) *Server {
+// 	s := new(Server)
+// 	cfg := config.Cfg
+// 	var err error
+// 	s.Port, err = cfg.Int(config.Env + ".port")
+// 	utils.LogError("port must be present in config", err)
+// 	return s
+// }
 
 // func main() {
 
