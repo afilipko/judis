@@ -2,7 +2,6 @@ package main
 
 import (
 	"judis/config"
-	"judis/server"
 	"os"
 
 	log "github.com/inconshreveable/log15"
@@ -22,12 +21,13 @@ func main() {
 	}
 	log.Info("Config path " + confPath)
 	cfg := config.ParseConfig(envName, confPath)
+	server := Server.InitServer(cfg)
 	// serv := server.BuildServer(cfg)
 	// log.Info("PORT " + strconv.Itoa(serv.Port))
-	p, err := cfg.Cfg.Int("development.port")
+	log.Info("Started server 1")
+	err := server.AcceptRequests()
 	if err != nil {
-		log.Error("4", err)
+		log.Error("Failed to start server", err)
 	}
-	s := server.Server{Port: p}
-	s.Handle()
+	log.Info("Started server 2")
 }

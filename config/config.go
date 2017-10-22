@@ -18,6 +18,14 @@ type Config struct {
 	Cfg *conf.Config
 }
 
+func (c *Config) DefaultTTL() int {
+	ttl, err := c.Cfg.Int(c.Env + ".default_ttl")
+	if err != nil {
+		utils.LogErrorAndExit("Can't read default_ttl in config file", err)
+	}
+	return ttl
+}
+
 // ParseConfig read conf from CONF_PATH
 func ParseConfig(envName string, confPath string) *Config {
 	cfg, err := conf.ParseYamlFile(confPath)

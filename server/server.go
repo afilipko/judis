@@ -2,20 +2,46 @@ package server
 
 import (
 	"io"
+	"judis/config"
 	"judis/utils"
 	"net"
 	"net/textproto"
 	"strings"
+	"sync"
 
 	log "github.com/inconshreveable/log15"
 )
 
 // Server contains server info and methods
 type Server struct {
-	Port int
+	conf  *config.Config
+	cache *Cache
+	commands map[string]Command
 }
 
-func (server *Server) Handle() error {
+type TtlCleaner struct {
+	defaultTtl int
+}
+
+type Cache struct {
+	sync.Mutex
+	items      map[string]interface{}
+	ttlCleaner *TtlCleaner
+}
+
+func InitServer(config *config.Config) *Server {
+	ttlCleaner := new(TtlCleaner)
+	cache := new(Cache)
+
+	ttlCleaner.defaultTtl = config.DefaultTTL()
+	cache.ttlCleaner = ttlCleaner
+	cache.items = make(map[string]interface{})
+
+	server := Server{conf: config, cache: cache}
+	return &server
+}
+
+func (server *Server) AcceptRequests() error {
 	addr, err := net.ResolveTCPAddr("tcp", ":3002")
 	utils.LogError("can not build address", err)
 
@@ -49,6 +75,7 @@ func (server *Server) Handle() error {
 
 			cmd := strings.Fields(l)
 			log.Debug("got command", "line", l, "cmd", cmd)
+			
 		}
 	}
 	// go server.handle(connection)
