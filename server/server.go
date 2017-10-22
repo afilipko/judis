@@ -14,8 +14,8 @@ import (
 
 // Server contains server info and methods
 type Server struct {
-	conf  *config.Config
-	cache *Cache
+	conf     *config.Config
+	storage  *Storage
 	commands map[string]Command
 }
 
@@ -23,7 +23,7 @@ type TtlCleaner struct {
 	defaultTtl int
 }
 
-type Cache struct {
+type Storage struct {
 	sync.Mutex
 	items      map[string]interface{}
 	ttlCleaner *TtlCleaner
@@ -31,13 +31,13 @@ type Cache struct {
 
 func InitServer(config *config.Config) *Server {
 	ttlCleaner := new(TtlCleaner)
-	cache := new(Cache)
+	storage := new(Storage)
 
 	ttlCleaner.defaultTtl = config.DefaultTTL()
-	cache.ttlCleaner = ttlCleaner
-	cache.items = make(map[string]interface{})
+	storage.ttlCleaner = ttlCleaner
+	storage.items = make(map[string]interface{})
 
-	server := Server{conf: config, cache: cache}
+	server := Server{conf: config, storage: storage}
 	return &server
 }
 
@@ -75,7 +75,7 @@ func (server *Server) AcceptRequests() error {
 
 			cmd := strings.Fields(l)
 			log.Debug("got command", "line", l, "cmd", cmd)
-			
+
 		}
 	}
 	// go server.handle(connection)
