@@ -23,9 +23,11 @@ type TtlCleaner struct {
 	defaultTtl int
 }
 
+type Storable interface{}
+
 type Storage struct {
-	sync.Mutex
-	items      map[string]interface{}
+	sync.RWMutex
+	items      map[string]Storable
 	ttlCleaner *TtlCleaner
 }
 
@@ -35,7 +37,7 @@ func InitServer(config *config.Config) *Server {
 
 	ttlCleaner.defaultTtl = config.DefaultTTL()
 	storage.ttlCleaner = ttlCleaner
-	storage.items = make(map[string]interface{})
+	storage.items = make(map[string]Storable)
 
 	server := Server{conf: config, storage: storage}
 	return &server
