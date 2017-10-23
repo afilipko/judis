@@ -23,7 +23,26 @@ type TtlCleaner struct {
 	defaultTtl int
 }
 
-type Storable interface{}
+type Storable interface {
+	Get(args ...string) string
+	Set(args ...string) error
+	Update(args ...string) error
+	Remove(args ...string) string
+}
+
+type StorableString struct {
+	str string
+}
+
+func (s *StorableString) Get(args ...string) string {
+	return s.str
+}
+
+func (s *StorableString) Set(args ...string) string {
+	newStr := args[0]
+	s.str = newStr
+	return nil
+}
 
 type Storage struct {
 	sync.RWMutex
