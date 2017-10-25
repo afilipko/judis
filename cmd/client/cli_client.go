@@ -9,7 +9,6 @@ import (
 	"net/textproto"
 	"os"
 	"strconv"
-	"strings"
 
 	log "github.com/inconshreveable/log15"
 )
@@ -33,30 +32,31 @@ func main() {
 	log.Info("to stop client enter exit or press Ctrl-C")
 	scanner := bufio.NewScanner(os.Stdin)
 	port, err := cfg.Cfg.Int("development.port")
-	utils.LogError("err", err)
-	conn, err := net.Dial("tcp", "localhost:"+strconv.Itoa(port))
-	textProto := textproto.NewConn(conn)
 
 	utils.LogError("cannot connect server", err)
 	for scanner.Scan() {
-
+		conn, err := net.Dial("tcp", "localhost:"+strconv.Itoa(port))
+		utils.LogError("err", err)
+		textProto := textproto.NewConn(conn)
 		if command = scanner.Text(); command == exitCommand {
 			os.Exit(1)
 		} else {
-			commandName := strings.Split(command, " ")[0]
-			commands := strings.Split(command, " ")[1:]
-			id, err := textProto.Cmd(commandName, commands)
+			// commandName := strings.Split(command, " ")[0]
+			// commands := strings.Split(command, " ")[1:]
+			id, err := textProto.Cmd(command)
 
 			if err != nil {
-				log.Error("m", err)
+				log.Error("ERROR11", err)
 			}
+			log.Info("CMD id ", fmt.Sprint(id))
 			textProto.StartResponse(id)
-			defer textProto.EndResponse(id)
-			code, msg, err := textProto.ReadResponse(333)
+
+			code, msg, err := textProto.ReadResponse(200)
 			if err != nil {
-				log.Error("m", err)
+				log.Error("ERROR 222", err, msg)
 			}
 			log.Info("CODE " + strconv.Itoa(code) + " MSG " + msg)
+			textProto.EndResponse(id)
 		}
 	}
 	if err := scanner.Err(); err != nil {
