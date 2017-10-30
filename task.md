@@ -3,12 +3,17 @@
 Simple implementation of Redis-like in-memory cache
 
 Desired features:
-- Key-value storage with string, lists, dict support
+- Key-value storage with 
++ string
+- lists
++ dict
+
+support
 - Per-key TTL
 - Operations:
-  - Get
-  - Set
-  - Update
+  +/- Get
+  +/- Set
+  +/- Update
   - Remove
   - Keys
 - Custom operations(Get i element on list, get value by key from dict, etc)

@@ -7,6 +7,7 @@ import (
 	"judis/utils"
 	"net"
 	"net/textproto"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -35,15 +36,43 @@ type StorableString struct {
 	str string
 }
 
-func (storable StorableString) Get(args ...string) string {
+type StorableHash struct {
+	hash map[string]string
+}
+
+func (storable *StorableString) Get(args ...string) string {
 	return storable.str
 }
 
-func (storable StorableString) Set(args ...string) error {
+func (storable *StorableString) Set(args ...string) error {
 	if len(args) == 0 {
 		return errors.New("cannot use empty value")
 	}
 	storable.str = args[0]
+	return nil
+}
+
+func (storable *StorableHash) Get(args ...string) string {
+	log.Info("GET TEG")
+	field := args[0]
+	log.Info(" 1 Getting fiel", field)
+	if storable.hash == nil {
+		storable.hash = make(map[string]string)
+	}
+	log.Info("Getting fiel", field)
+	log.Info(storable.hash[field])
+	value := storable.hash[field]
+	return value
+}
+
+func (storable *StorableHash) Set(args ...string) error {
+	if storable.hash == nil {
+		storable.hash = make(map[string]string)
+	}
+	field := args[0]
+	value := args[1]
+	storable.hash[field] = value
+	log.Info("StrHsh " + storable.hash[field])
 	return nil
 }
 
@@ -68,7 +97,7 @@ func (s *Server) set(args []string) (string, error) {
 		return "OK", store.items[key].Set(value)
 	}
 	storable := StorableString{str: value}
-	store.items[key] = storable
+	store.items[key] = &storable
 	return "OK", nil
 }
 
@@ -85,6 +114,50 @@ func (s *Server) get(args []string) (string, error) {
 	return s.storage.items[key].Get(), nil
 }
 
+func (s *Server) hset(args []string) (string, error) {
+	if len(args) != 3 {
+		return "", errors.New("wrong number of arguments for 'hset' command")
+	}
+	store := s.storage
+	store.Lock()
+	defer store.Unlock()
+
+	key := args[0]
+	if store.items[key] == nil {
+		store.items[key] = new(StorableHash)
+	}
+	error := store.items[key].Set(args[1:]...)
+	if error != nil {
+		return "FAIL", error
+	}
+	return "OK", nil
+}
+
+func (s *Server) hget(args []string) (string, error) {
+	if len(args) != 2 {
+		return "", errors.New("wrong number of arguments for 'hget' command")
+	}
+	store := s.storage
+	store.RLock()
+	defer store.RUnlock()
+
+	key := args[0]
+	field := args[1]
+	log.Info(key)
+	log.Info(field)
+	if store.items[key] == nil {
+		return "", nil
+	}
+	log.Info("Try to get field")
+	hash, ok := store.items[key].(*StorableHash)
+	if !ok {
+		log.Info("Wrong type")
+		return "", errors.New("Operation against a key holding the wrong kind of value")
+	}
+	value := hash.Get(field)
+	return value, nil
+}
+
 func InitServer(config *config.Config) *Server {
 	ttlCleaner := new(TtlCleaner)
 	storage := new(Storage)
@@ -98,9 +171,32 @@ func InitServer(config *config.Config) *Server {
 	commands := make(map[string]Handler)
 	commands["GET"] = server.get
 	commands["SET"] = server.set
+	commands["HSET"] = server.hset
+	commands["HGET"] = server.hget
+	commands["KEYS"] = server.keys
 	server.commands = commands
 
 	return &server
+}
+
+func (server *Server) keys(args []string) (string, error) {
+	if server.storage == nil {
+		return "", nil
+	}
+	keys := reflect.ValueOf(server.storage.items).MapKeys()
+	strkeys := make([]string, len(keys))
+	for i := 0; i < len(keys); i++ {
+		strkeys[i] = keys[i].String()
+	}
+	return strings.Join(strkeys, " "), nil
+}
+func (server *Server) Keys() string {
+	k := make([]string, 1)
+	r, e := server.keys(k)
+	if e != nil {
+		return ""
+	}
+	return r
 }
 
 func (server *Server) AcceptRequests() error {
@@ -134,16 +230,22 @@ func (server *Server) AcceptRequests() error {
 			log.Warn("closing connection", "error reading", err)
 			return err
 		}
-		log.Info(l)
+		log.Info(server.Keys())
 		args := strings.Fields(l)
-
-		if server.commands[args[0]] == nil {
+		command := strings.ToUpper(args[0])
+		if server.commands[command] == nil {
 			log.Error("not existing command")
 		}
-		resp, err := server.commands[args[0]](args[1:])
+		log.Info("keys before command")
+		log.Info(server.Keys())
+
+		resp, err := server.commands[command](args[1:])
+
+		log.Info("keys after command")
+		log.Info(server.Keys())
 		if err != nil {
 			protoConn.PrintfLine("500-error")
-			log.Error("Error", err)
+			log.Error("500 Error ", err)
 
 		}
 		log.Info("Started response...")
