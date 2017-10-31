@@ -76,6 +76,38 @@ func (storable *StorableHash) Set(args ...string) error {
 	return nil
 }
 
+type StorableList struct {
+	list []string
+}
+
+func (storable *StorableList) Get(args ...string) string {
+	return ""
+}
+
+func (storable *StorableList) Set(args ...string) error {
+	return nil
+}
+
+func (storable *StorableList) Rpop() string {
+	if storable.list == nil {
+		return ""
+	}
+	log.Info(strings.Join(storable.list, "-"))
+	var value string
+	value, storable.list = storable.list[len(storable.list)-1], storable.list[:len(storable.list)-1]
+	return value
+}
+
+func (storable *StorableList) Rpush(el string) string {
+	if storable.list == nil {
+		storable.list = []string{el}
+		return "OK"
+	}
+	storable.list = append(storable.list, el)
+	log.Info(strings.Join(storable.list, "-"))
+	return "OK"
+}
+
 type Storage struct {
 	sync.RWMutex
 	items      map[string]Storable
@@ -158,6 +190,47 @@ func (s *Server) hget(args []string) (string, error) {
 	return value, nil
 }
 
+func (s *Server) rpush(args []string) (string, error) {
+	if len(args) != 2 {
+		return "", errors.New("wrong number of arguments for 'rpush' command")
+	}
+	store := s.storage
+	store.Lock()
+	defer store.Unlock()
+
+	key := args[0]
+	if store.items[key] == nil {
+		store.items[key] = new(StorableList)
+	}
+	list, ok := store.items[key].(*StorableList)
+	if !ok {
+		log.Info("Wrong type")
+		return "", errors.New("Operation against a key holding the wrong kind of value")
+	}
+	return list.Rpush(args[1]), nil
+}
+
+func (s *Server) rpop(args []string) (string, error) {
+	if len(args) != 1 {
+		return "", errors.New("wrong number of arguments for 'rpush' command")
+	}
+	store := s.storage
+	store.RLock()
+	defer store.RUnlock()
+
+	key := args[0]
+	if store.items[key] == nil {
+		return "", nil
+	}
+
+	list, ok := store.items[key].(*StorableList)
+	if !ok {
+		log.Info("Wrong type")
+		return "", errors.New("Operation against a key holding the wrong kind of value")
+	}
+	return list.Rpop(), nil
+}
+
 func InitServer(config *config.Config) *Server {
 	ttlCleaner := new(TtlCleaner)
 	storage := new(Storage)
@@ -174,6 +247,8 @@ func InitServer(config *config.Config) *Server {
 	commands["HSET"] = server.hset
 	commands["HGET"] = server.hget
 	commands["KEYS"] = server.keys
+	commands["RPUSH"] = server.rpush
+	commands["RPOP"] = server.rpop
 	server.commands = commands
 
 	return &server
