@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/textproto"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -81,10 +82,37 @@ type StorableList struct {
 }
 
 func (storable *StorableList) Get(args ...string) string {
-	return ""
+	if storable.list == nil {
+		return ""
+	}
+	start, err := strconv.Atoi(args[0])
+	if err != nil {
+		start = 0
+	}
+	end, err := strconv.Atoi(args[1])
+	if err != nil || end < len(storable.list) {
+		end = len(storable.list)
+	}
+	if start >= end {
+		return ""
+	}
+
+	return strings.Join(storable.list[start:end], " ")
 }
 
 func (storable *StorableList) Set(args ...string) error {
+	if storable.list == nil {
+		return errors.New("empty list")
+	}
+	index, err := strconv.Atoi(args[0])
+	el := args[1]
+	if err != nil {
+		return err
+	}
+	if index < 0 || index >= len(storable.list) {
+		return errors.New("out of range")
+	}
+	storable.list[index] = el
 	return nil
 }
 
@@ -231,6 +259,65 @@ func (s *Server) rpop(args []string) (string, error) {
 	return list.Rpop(), nil
 }
 
+func (s *Server) lrange(args []string) (string, error) {
+	if len(args) != 3 {
+		return "", errors.New("wrong number of arguments for 'lrange' command")
+	}
+	store := s.storage
+	store.RLock()
+	defer store.RUnlock()
+
+	key := args[0]
+	if store.items[key] == nil {
+		return "(empty list or set)", nil
+	}
+
+	list, ok := store.items[key].(*StorableList)
+	if !ok {
+		log.Info("Wrong type")
+		return "", errors.New("Operation against a key holding the wrong kind of value")
+	}
+	return list.Get(args[1], args[2]), nil
+}
+
+func (s *Server) lset(args []string) (string, error) {
+	if len(args) != 3 {
+		return "", errors.New("wrong number of arguments for 'rpush' command")
+	}
+	store := s.storage
+	store.Lock()
+	defer store.Unlock()
+
+	key := args[0]
+	if store.items[key] == nil {
+		store.items[key] = new(StorableList)
+	}
+	list, ok := store.items[key].(*StorableList)
+	if !ok {
+		log.Info("Wrong type")
+		return "", errors.New("Operation against a key holding the wrong kind of value")
+	}
+	err := list.Set(args[1], args[2])
+	if err != nil {
+		return "FAIL", err
+	}
+	return "OK", nil
+}
+
+func (s *Server) del(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", errors.New("wrong number of arguments for 'rpush' command")
+	}
+	store := s.storage
+	store.Lock()
+	defer store.Unlock()
+	for _, key := range args {
+		delete(store.items, key)
+	}
+
+	return "OK", nil
+}
+
 func InitServer(config *config.Config) *Server {
 	ttlCleaner := new(TtlCleaner)
 	storage := new(Storage)
@@ -249,6 +336,10 @@ func InitServer(config *config.Config) *Server {
 	commands["KEYS"] = server.keys
 	commands["RPUSH"] = server.rpush
 	commands["RPOP"] = server.rpop
+	commands["LRANGE"] = server.lrange
+	commands["LSET"] = server.lset
+	commands["DEL"] = server.del
+
 	server.commands = commands
 
 	return &server
