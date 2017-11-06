@@ -4,142 +4,23 @@ import (
 	"errors"
 	"io"
 	"judis/config"
+	"judis/storage"
 	"judis/utils"
 	"net"
 	"net/textproto"
 	"reflect"
-	"strconv"
+	"runtime"
 	"strings"
-	"sync"
 
 	log "github.com/inconshreveable/log15"
+	"github.com/jeffail/tunny"
 )
 
 // Server contains server info and methods
 type Server struct {
 	conf     *config.Config
-	storage  *Storage
+	storage  *storage.Storage
 	commands map[string]Handler
-}
-
-type TtlCleaner struct {
-	defaultTtl int
-}
-
-type Storable interface {
-	Get(args ...string) string
-	Set(args ...string) error
-	// Update(args ...string) error
-	// Remove(args ...string) string
-}
-
-type StorableString struct {
-	str string
-}
-
-type StorableHash struct {
-	hash map[string]string
-}
-
-func (storable *StorableString) Get(args ...string) string {
-	return storable.str
-}
-
-func (storable *StorableString) Set(args ...string) error {
-	if len(args) == 0 {
-		return errors.New("cannot use empty value")
-	}
-	storable.str = args[0]
-	return nil
-}
-
-func (storable *StorableHash) Get(args ...string) string {
-	log.Info("GET TEG")
-	field := args[0]
-	log.Info(" 1 Getting fiel", field)
-	if storable.hash == nil {
-		storable.hash = make(map[string]string)
-	}
-	log.Info("Getting fiel", field)
-	log.Info(storable.hash[field])
-	value := storable.hash[field]
-	return value
-}
-
-func (storable *StorableHash) Set(args ...string) error {
-	if storable.hash == nil {
-		storable.hash = make(map[string]string)
-	}
-	field := args[0]
-	value := args[1]
-	storable.hash[field] = value
-	log.Info("StrHsh " + storable.hash[field])
-	return nil
-}
-
-type StorableList struct {
-	list []string
-}
-
-func (storable *StorableList) Get(args ...string) string {
-	if storable.list == nil {
-		return ""
-	}
-	start, err := strconv.Atoi(args[0])
-	if err != nil {
-		start = 0
-	}
-	end, err := strconv.Atoi(args[1])
-	if err != nil || end < len(storable.list) {
-		end = len(storable.list)
-	}
-	if start >= end {
-		return ""
-	}
-
-	return strings.Join(storable.list[start:end], " ")
-}
-
-func (storable *StorableList) Set(args ...string) error {
-	if storable.list == nil {
-		return errors.New("empty list")
-	}
-	index, err := strconv.Atoi(args[0])
-	el := args[1]
-	if err != nil {
-		return err
-	}
-	if index < 0 || index >= len(storable.list) {
-		return errors.New("out of range")
-	}
-	storable.list[index] = el
-	return nil
-}
-
-func (storable *StorableList) Rpop() string {
-	if storable.list == nil {
-		return ""
-	}
-	log.Info(strings.Join(storable.list, "-"))
-	var value string
-	value, storable.list = storable.list[len(storable.list)-1], storable.list[:len(storable.list)-1]
-	return value
-}
-
-func (storable *StorableList) Rpush(el string) string {
-	if storable.list == nil {
-		storable.list = []string{el}
-		return "OK"
-	}
-	storable.list = append(storable.list, el)
-	log.Info(strings.Join(storable.list, "-"))
-	return "OK"
-}
-
-type Storage struct {
-	sync.RWMutex
-	items      map[string]Storable
-	ttlCleaner *TtlCleaner
 }
 
 type Handler func(args []string) (string, error)
@@ -369,12 +250,6 @@ func (server *Server) handleConnection(conn *net.TCPConn) {
 	defer conn.Close()
 	protoConn := textproto.NewConn(conn)
 
-	// if err := c.PrintfLine("200 Connected"); err != nil {
-	// 	log15.Warn("closing connection", "error writing to client", err)
-	// 	return
-	// }
-	//
-	// for {
 	l, err := protoConn.ReadLine()
 	if err != nil {
 		if err == io.EOF {
@@ -403,7 +278,6 @@ func (server *Server) handleConnection(conn *net.TCPConn) {
 
 	}
 	log.Info("Started response...")
-	log.Info(resp)
 	protoConn.PrintfLine("200-" + resp)
 	protoConn.PrintfLine("200 ")
 	log.Info("Close conn")
@@ -416,47 +290,29 @@ func (server *Server) AcceptRequests() error {
 	listener, err := net.ListenTCP("tcp", addr)
 	utils.LogError("can not listen address", err)
 
+	pool := server.initPool()
+	pool, err = pool.Open()
+	utils.LogError("can not init workers pool", err)
+
 	defer listener.Close()
+	defer pool.Close()
 
 	for {
-		// TODO: limit connection amount
 		connection, err := listener.AcceptTCP()
 		utils.LogError("error during connection accepting", err)
-		go server.handleConnection(connection)
-
-		// }
+		pool.SendWork(connection)
 	}
 
 }
 
-// // BuildServer returns pointer to new Server instance
-// func BuildServer(config *Config) *Server {
-// 	s := new(Server)
-// 	cfg := config.Cfg
-// 	var err error
-// 	s.Port, err = cfg.Int(config.Env + ".port")
-// 	utils.LogError("port must be present in config", err)
-// 	return s
-// }
+func (server *Server) initPool() *tunny.WorkPool {
+	numCPUs := runtime.NumCPU()
+	runtime.GOMAXPROCS(numCPUs + 1) // numCPUs hot threads + one for async tasks.
 
-// func main() {
-
-// 	// https://github.com/ivpusic/grpool
-
-// 	var server = buildServer()
-
-// 	addr, err := net.ResolveTCPAddr("tcp", ":8080")
-// 	utils.LogError(err, "can not build address")
-
-// 	listener, err := net.ListenTCP("tcp", addr)
-// 	utils.LogError(err, "can not listen address")
-
-// 	defer listener.Close()
-
-// 	for {
-// 		// TODO: limit connection amount
-// 		connection, err := listener.AcceptTCP()
-// 		utils.LogError(err, "error during connection accepting")
-// 		go server.handle(connection)
-// 	}
-// }
+	pool := tunny.CreatePool(numCPUs, func(object interface{}) interface{} {
+		conn := object.(*net.TCPConn)
+		server.handleConnection(conn)
+		return nil
+	})
+	return pool
+}
