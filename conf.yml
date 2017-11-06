@@ -2,6 +2,5 @@ development:
   port: 3002
   # TTL in seconds, -1 for forever
   default_ttl: -1 
-  workers_pool: 100
-
+  
 
