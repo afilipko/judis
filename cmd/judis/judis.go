@@ -23,12 +23,10 @@ func main() {
 	log.Info("Config path " + confPath)
 	cfg := config.ParseConfig(envName, confPath)
 	server := server.InitServer(cfg)
-	// serv := server.BuildServer(cfg)
-	// log.Info("PORT " + strconv.Itoa(serv.Port))
-	log.Info("Started server 1")
+
+	log.Info("Started server")
 	err := server.AcceptRequests()
 	if err != nil {
 		log.Error("Failed to start server", err)
 	}
-	log.Info("Started server 2")
 }

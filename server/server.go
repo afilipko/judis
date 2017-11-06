@@ -365,6 +365,50 @@ func (server *Server) Keys() string {
 	return r
 }
 
+func (server *Server) handleConnection(conn *net.TCPConn) {
+	defer conn.Close()
+	protoConn := textproto.NewConn(conn)
+
+	// if err := c.PrintfLine("200 Connected"); err != nil {
+	// 	log15.Warn("closing connection", "error writing to client", err)
+	// 	return
+	// }
+	//
+	// for {
+	l, err := protoConn.ReadLine()
+	if err != nil {
+		if err == io.EOF {
+			log.Info("the connection is dropped on client side")
+			// return err
+		}
+		log.Warn("closing connection", "error reading", err)
+		// return err
+	}
+	log.Info(server.Keys())
+	args := strings.Fields(l)
+	command := strings.ToUpper(args[0])
+	if server.commands[command] == nil {
+		log.Error("not existing command")
+	}
+	log.Info("keys before command")
+	log.Info(server.Keys())
+
+	resp, err := server.commands[command](args[1:])
+
+	log.Info("keys after command")
+	log.Info(server.Keys())
+	if err != nil {
+		protoConn.PrintfLine("500-error")
+		log.Error("500 Error ", err)
+
+	}
+	log.Info("Started response...")
+	log.Info(resp)
+	protoConn.PrintfLine("200-" + resp)
+	protoConn.PrintfLine("200 ")
+	log.Info("Close conn")
+}
+
 func (server *Server) AcceptRequests() error {
 	addr, err := net.ResolveTCPAddr("tcp", ":3002")
 	utils.LogError("can not build address", err)
@@ -378,51 +422,10 @@ func (server *Server) AcceptRequests() error {
 		// TODO: limit connection amount
 		connection, err := listener.AcceptTCP()
 		utils.LogError("error during connection accepting", err)
-		log.Info("ACCEPt CONN")
-		protoConn := textproto.NewConn(connection)
+		go server.handleConnection(connection)
 
-		// if err := c.PrintfLine("200 Connected"); err != nil {
-		// 	log15.Warn("closing connection", "error writing to client", err)
-		// 	return
-		// }
-		//
-		// for {
-		l, err := protoConn.ReadLine()
-		if err != nil {
-			if err == io.EOF {
-				log.Info("the connection is dropped on client side")
-				return err
-			}
-			log.Warn("closing connection", "error reading", err)
-			return err
-		}
-		log.Info(server.Keys())
-		args := strings.Fields(l)
-		command := strings.ToUpper(args[0])
-		if server.commands[command] == nil {
-			log.Error("not existing command")
-		}
-		log.Info("keys before command")
-		log.Info(server.Keys())
-
-		resp, err := server.commands[command](args[1:])
-
-		log.Info("keys after command")
-		log.Info(server.Keys())
-		if err != nil {
-			protoConn.PrintfLine("500-error")
-			log.Error("500 Error ", err)
-
-		}
-		log.Info("Started response...")
-		log.Info(resp)
-		protoConn.PrintfLine("200-" + resp)
-		protoConn.PrintfLine("200 ")
-		log.Info("Close conn")
-		connection.Close()
 		// }
 	}
-	// go server.handle(connection)
 
 }
 
