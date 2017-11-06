@@ -13,7 +13,7 @@ type Storable interface {
 }
 
 type StorableString struct {
-	str string
+	Str string
 }
 
 type StorableHash struct {
@@ -25,24 +25,24 @@ type StorableList struct {
 }
 
 type TtlCleaner struct {
-	defaultTtl int
+	DefaultTtl int
 }
 
 type Storage struct {
 	sync.RWMutex
-	items      map[string]Storable
-	ttlCleaner *TtlCleaner
+	Items      map[string]Storable
+	TTLCleaner *TtlCleaner
 }
 
 func (storable *StorableString) Get(args ...string) string {
-	return storable.str
+	return storable.Str
 }
 
 func (storable *StorableString) Set(args ...string) error {
 	if len(args) == 0 {
 		return errors.New("cannot use empty value")
 	}
-	storable.str = args[0]
+	storable.Str = args[0]
 	return nil
 }
 

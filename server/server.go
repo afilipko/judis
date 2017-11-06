@@ -34,11 +34,11 @@ func (s *Server) set(args []string) (string, error) {
 	defer store.Unlock()
 	key := args[0]
 	value := args[1]
-	if store.items[key] != nil {
-		return "OK", store.items[key].Set(value)
+	if store.Items[key] != nil {
+		return "OK", store.Items[key].Set(value)
 	}
-	storable := StorableString{str: value}
-	store.items[key] = &storable
+	storable := storage.StorableString{Str: value}
+	store.Items[key] = &storable
 	return "OK", nil
 }
 
@@ -49,10 +49,10 @@ func (s *Server) get(args []string) (string, error) {
 	s.storage.RLock()
 	defer s.storage.RUnlock()
 	key := args[0]
-	if s.storage.items[key] == nil {
+	if s.storage.Items[key] == nil {
 		return "", nil
 	}
-	return s.storage.items[key].Get(), nil
+	return s.storage.Items[key].Get(), nil
 }
 
 func (s *Server) hset(args []string) (string, error) {
@@ -64,10 +64,10 @@ func (s *Server) hset(args []string) (string, error) {
 	defer store.Unlock()
 
 	key := args[0]
-	if store.items[key] == nil {
-		store.items[key] = new(StorableHash)
+	if store.Items[key] == nil {
+		store.Items[key] = new(storage.StorableHash)
 	}
-	error := store.items[key].Set(args[1:]...)
+	error := store.Items[key].Set(args[1:]...)
 	if error != nil {
 		return "FAIL", error
 	}
@@ -86,11 +86,11 @@ func (s *Server) hget(args []string) (string, error) {
 	field := args[1]
 	log.Info(key)
 	log.Info(field)
-	if store.items[key] == nil {
+	if store.Items[key] == nil {
 		return "", nil
 	}
 	log.Info("Try to get field")
-	hash, ok := store.items[key].(*StorableHash)
+	hash, ok := store.Items[key].(*storage.StorableHash)
 	if !ok {
 		log.Info("Wrong type")
 		return "", errors.New("Operation against a key holding the wrong kind of value")
@@ -108,10 +108,10 @@ func (s *Server) rpush(args []string) (string, error) {
 	defer store.Unlock()
 
 	key := args[0]
-	if store.items[key] == nil {
-		store.items[key] = new(StorableList)
+	if store.Items[key] == nil {
+		store.Items[key] = new(storage.StorableList)
 	}
-	list, ok := store.items[key].(*StorableList)
+	list, ok := store.Items[key].(*storage.StorableList)
 	if !ok {
 		log.Info("Wrong type")
 		return "", errors.New("Operation against a key holding the wrong kind of value")
@@ -128,11 +128,11 @@ func (s *Server) rpop(args []string) (string, error) {
 	defer store.RUnlock()
 
 	key := args[0]
-	if store.items[key] == nil {
+	if store.Items[key] == nil {
 		return "", nil
 	}
 
-	list, ok := store.items[key].(*StorableList)
+	list, ok := store.Items[key].(*storage.StorableList)
 	if !ok {
 		log.Info("Wrong type")
 		return "", errors.New("Operation against a key holding the wrong kind of value")
@@ -149,11 +149,11 @@ func (s *Server) lrange(args []string) (string, error) {
 	defer store.RUnlock()
 
 	key := args[0]
-	if store.items[key] == nil {
+	if store.Items[key] == nil {
 		return "(empty list or set)", nil
 	}
 
-	list, ok := store.items[key].(*StorableList)
+	list, ok := store.Items[key].(*storage.StorableList)
 	if !ok {
 		log.Info("Wrong type")
 		return "", errors.New("Operation against a key holding the wrong kind of value")
@@ -170,10 +170,10 @@ func (s *Server) lset(args []string) (string, error) {
 	defer store.Unlock()
 
 	key := args[0]
-	if store.items[key] == nil {
-		store.items[key] = new(StorableList)
+	if store.Items[key] == nil {
+		store.Items[key] = new(storage.StorableList)
 	}
-	list, ok := store.items[key].(*StorableList)
+	list, ok := store.Items[key].(*storage.StorableList)
 	if !ok {
 		log.Info("Wrong type")
 		return "", errors.New("Operation against a key holding the wrong kind of value")
@@ -193,21 +193,21 @@ func (s *Server) del(args []string) (string, error) {
 	store.Lock()
 	defer store.Unlock()
 	for _, key := range args {
-		delete(store.items, key)
+		delete(store.Items, key)
 	}
 
 	return "OK", nil
 }
 
 func InitServer(config *config.Config) *Server {
-	ttlCleaner := new(TtlCleaner)
-	storage := new(Storage)
+	ttlCleaner := new(storage.TtlCleaner)
+	store := new(storage.Storage)
 
-	ttlCleaner.defaultTtl = config.DefaultTTL()
-	storage.ttlCleaner = ttlCleaner
-	storage.items = make(map[string]Storable)
+	ttlCleaner.DefaultTtl = config.DefaultTTL()
+	store.TTLCleaner = ttlCleaner
+	store.Items = make(map[string]storage.Storable)
 
-	server := Server{conf: config, storage: storage}
+	server := Server{conf: config, storage: store}
 
 	commands := make(map[string]Handler)
 	commands["GET"] = server.get
@@ -230,7 +230,7 @@ func (server *Server) keys(args []string) (string, error) {
 	if server.storage == nil {
 		return "", nil
 	}
-	keys := reflect.ValueOf(server.storage.items).MapKeys()
+	keys := reflect.ValueOf(server.storage.Items).MapKeys()
 	strkeys := make([]string, len(keys))
 	for i := 0; i < len(keys); i++ {
 		strkeys[i] = keys[i].String()
